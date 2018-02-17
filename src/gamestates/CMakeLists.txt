@@ -1,0 +1,5 @@
+FILE (GLOB gamestates "*.c")
+FOREACH(gamestate ${gamestates})
+    get_filename_component(gamestate_name ${gamestate} NAME_WE)
+    register_gamestate(${gamestate_name})
+ENDFOREACH(gamestate)

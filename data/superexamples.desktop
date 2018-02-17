@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Super Examples
+Exec=superexamples
+Comment=libsuperderpy game engine examples
+Icon=superexamples
+Terminal=false
+Categories=Game;ArcadeGame;
