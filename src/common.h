@@ -23,6 +23,7 @@ struct CommonResources {
 	bool unused;
 };
 
+void DrawCentered(ALLEGRO_BITMAP* bitmap, int x, int y, int flags);
 struct CommonResources* CreateGameData(struct Game* game);
 void DestroyGameData(struct Game* game);
 bool GlobalEventHandler(struct Game* game, ALLEGRO_EVENT* ev);

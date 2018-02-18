@@ -21,6 +21,10 @@
 #include "common.h"
 #include <libsuperderpy.h>
 
+void DrawCentered(ALLEGRO_BITMAP* bitmap, int x, int y, int flags) {
+	al_draw_bitmap(bitmap, x - al_get_bitmap_width(bitmap) / 2.0, y - al_get_bitmap_height(bitmap) / 2.0, flags);
+}
+
 bool GlobalEventHandler(struct Game* game, ALLEGRO_EVENT* ev) {
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_F)) {
 		game->config.fullscreen = !game->config.fullscreen;
