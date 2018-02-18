@@ -35,6 +35,7 @@ struct Entity {
 	double x, y, angle, distance;
 	enum ENTITY_TYPE type;
 	bool used;
+	int score;
 };
 
 struct GamestateResources {
@@ -48,6 +49,8 @@ struct GamestateResources {
 
 	int score;
 
+	bool spawning;
+
 	bool up, left, down, right;
 
 	struct Character *car, *police, *teeth, *user, *fake, *news, *bad, *explosion;
@@ -57,12 +60,90 @@ struct GamestateResources {
 	struct Entity entities[8192];
 	int entities_count;
 
+	int fake_counter;
+
+	double wskaznik;
+
 	int count;
 	int pew;
 	int tilt;
+
+	bool move;
+	bool showlogo;
+	ALLEGRO_BITMAP* logo;
+	int fade;
+
+	struct {
+		ALLEGRO_SAMPLE* sample;
+		ALLEGRO_SAMPLE_INSTANCE* sound;
+		bool used;
+	} bullets[10];
+
+	struct {
+		ALLEGRO_SAMPLE* sample;
+		ALLEGRO_SAMPLE_INSTANCE* sound;
+		bool used;
+	} explosions[8];
 };
 
 int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
+
+static bool Speak(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+	ALLEGRO_AUDIO_STREAM* stream = TM_GetArg(action->arguments, 1);
+	char* text = TM_GetArg(action->arguments, 2);
+	char* person = TM_GetArg(action->arguments, 3);
+
+	if (state == TM_ACTIONSTATE_INIT) {
+		al_set_audio_stream_playing(stream, false);
+		al_set_audio_stream_playmode(stream, ALLEGRO_PLAYMODE_ONCE);
+	}
+
+	if (state == TM_ACTIONSTATE_START) {
+		game->data->skip = false;
+		game->data->text = text;
+		game->data->person = person;
+		//al_rewind_audio_stream(stream);
+		al_attach_audio_stream_to_mixer(stream, game->audio.voice);
+		al_set_audio_stream_playing(stream, true);
+	}
+
+	if (state == TM_ACTIONSTATE_RUNNING) {
+		return !al_get_audio_stream_playing(stream) || game->data->skip;
+	}
+
+	if (state == TM_ACTIONSTATE_DESTROY) {
+		al_destroy_audio_stream(stream);
+		game->data->text = NULL;
+	}
+	return false;
+}
+
+static bool ShowLogo(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		data->showlogo = true;
+	}
+	return true;
+}
+static bool HideLogo(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		data->showlogo = false;
+	}
+	return true;
+}
+
+static bool StartGame(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		data->move = true;
+	}
+	return true;
+}
 
 static struct Entity* SpawnEntity(struct Game* game, struct GamestateResources* data, double x, double y, double angle, enum ENTITY_TYPE type) {
 	while (data->entities[data->entities_count].used) {
@@ -85,13 +166,68 @@ static struct Entity* SpawnEntity(struct Game* game, struct GamestateResources* 
 		data->entities_count = 0;
 	}
 
+	if (type == TYPE_FAKE) {
+		data->fake_counter++;
+	}
+
 	return &data->entities[id];
+}
+
+static bool SpawnEnemies(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		for (int i = 0; i < 32; i++) {
+			double angle = rand() / ALLEGRO_PI;
+			SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, TYPE_USER);
+		}
+		for (int i = 0; i < 4; i++) {
+			double angle = rand() / ALLEGRO_PI;
+			SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, TYPE_MESSAGE);
+		}
+		for (int i = 0; i < 2; i++) {
+			double angle = rand() / ALLEGRO_PI;
+			SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, TYPE_ENEMY);
+		}
+		data->spawning = true;
+	}
+	return true;
+}
+
+static bool SpawnSingleFake(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		SpawnEntity(game, data, data->x + sin(data->angle) * 200, data->y + cos(data->angle) * 200, rand() / ALLEGRO_PI, TYPE_FAKE);
+	}
+	return true;
+}
+
+static bool SpawnSingleEnemy(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		SpawnEntity(game, data, data->x + sin(data->angle) * 200, data->y + cos(data->angle) * 200, rand() / ALLEGRO_PI, TYPE_ENEMY);
+	}
+	return true;
 }
 
 void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double delta) {
 	// Called 60 times per second (by default). Here you should do all your game logic.
-
+	TM_Process(data->timeline);
 	data->count++;
+
+	if (!data->move) {
+		return;
+	}
+
+	if (data->fade < 255) {
+		data->fade++;
+	}
+
+	if (data->fake_counter > 64) {
+		UnloadAllGamestates(game);
+	}
 
 	AnimateCharacter(game, data->car, delta, 1.0);
 	AnimateCharacter(game, data->teeth, delta, 1.0);
@@ -100,6 +236,13 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 	AnimateCharacter(game, data->news, delta, 1.0);
 	AnimateCharacter(game, data->bad, delta, 1.0);
 	AnimateCharacter(game, data->explosion, delta, 1.0);
+
+	if (data->spawning) {
+		if (data->count % 60 * 10 == 0) {
+			double angle = rand() / ALLEGRO_PI;
+			SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, rand() % 4 == 0 ? TYPE_ENEMY : TYPE_USER);
+		}
+	}
 
 	if (data->left) {
 		data->angle -= 0.02;
@@ -134,6 +277,20 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 		if (data->entities[j].used) {
 			if ((data->entities[j].type != TYPE_BULLET) && (data->entities[j].type != TYPE_EXPLOSION)) {
 				if ((fabs(data->x - data->entities[j].x) < 12) && (fabs(data->y - data->entities[j].y) < 12)) {
+					if (data->entities[j].type == TYPE_FAKE) {
+						data->fake_counter--;
+						data->entities[j].score = 100;
+					} else if (data->entities[j].type != TYPE_ENEMY) {
+						data->fake_counter += 2;
+						data->entities[j].score = -500;
+					} else {
+						data->entities[j].score = 500;
+					}
+					data->score += data->entities[j].score;
+					int s = rand() % 8;
+					al_stop_sample_instance(data->explosions[s].sound);
+					al_play_sample_instance(data->explosions[s].sound);
+
 					data->entities[j].type = TYPE_EXPLOSION;
 					data->entities[j].distance = 0;
 					data->tilt += 20;
@@ -159,6 +316,21 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 					if (data->entities[j].used) {
 						if ((data->entities[j].type != TYPE_BULLET) && (data->entities[j].type != TYPE_EXPLOSION)) {
 							if ((fabs(data->entities[i].x - data->entities[j].x) < 8) && (fabs(data->entities[i].y - data->entities[j].y) < 8)) {
+								if (data->entities[j].type == TYPE_FAKE) {
+									data->fake_counter--;
+									data->entities[j].score = 100;
+								} else if (data->entities[j].type != TYPE_ENEMY) {
+									data->fake_counter += 2;
+									data->entities[j].score = -500;
+								} else {
+									data->entities[j].score = 500;
+								}
+								data->score += data->entities[j].score;
+
+								int s = rand() % 8;
+								al_stop_sample_instance(data->explosions[s].sound);
+								al_play_sample_instance(data->explosions[s].sound);
+
 								data->entities[j].type = TYPE_EXPLOSION;
 								data->entities[j].distance = 0;
 								data->entities[i].used = false;
@@ -252,7 +424,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	//PrintConsole(game, "x %f, y %f, z %f", x, y, z);
 	x = x * 320 / 2 + 320 / 2;
 	y = y * -180 / 2 + 180 / 2;
-	al_draw_filled_rectangle(x - 2, y - 2, x + 2, y + 2, al_map_rgb(0, 0, 255));
+	//al_draw_filled_rectangle(x - 2, y - 2, x + 2, y + 2, al_map_rgb(0, 0, 255));
 
 	for (int i = 0; i < 8192; i++) {
 		if (data->entities[i].used) {
@@ -277,6 +449,8 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 			}
 			if (data->entities[i].type == TYPE_EXPLOSION) {
 				DrawCentered(data->explosion->bitmap, x, y, 0);
+				al_draw_textf(data->font, al_map_rgb(0, 0, 0), x + 1 + 3, y - 5 + 1, ALLEGRO_ALIGN_CENTER, "%d", data->entities[i].score);
+				al_draw_textf(data->font, al_map_rgb(255, 255, 255), x + 3, y - 5, ALLEGRO_ALIGN_CENTER, "%d", data->entities[i].score);
 			}
 
 			if (((data->entities[i].type == TYPE_ENEMY) || (data->entities[i].type == TYPE_FAKE)) && (z > 0)) {
@@ -322,10 +496,23 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	DrawCharacter(game, data->teeth);
 
 	al_draw_filled_rectangle(228, 167, 316, 176, al_premul_rgba_f(0, 0, 0, 0.8));
-	al_draw_filled_rectangle(229, 168, 229 + (315 - 229) * 0.5, 175, al_premul_rgba_f(1, 1, 1, 1));
+	al_draw_filled_rectangle(229, 168, 229 + (315 - 229) * (data->fake_counter / 64.0), 175, al_premul_rgba_f(1, 1, 1, 1));
+
+	al_draw_filled_rectangle(0, 0, 320, 180, al_premul_rgba(0, 0, 0, 255 - data->fade));
+
+	if (game->data->text) {
+		al_draw_filled_rectangle(0, 0, 320, 53, al_map_rgba(0, 0, 0, 128));
+		al_draw_text(data->font, al_map_rgb(255, 255, 255), 3, 3, ALLEGRO_ALIGN_LEFT, game->data->person);
+		DrawWrappedText(data->font, al_map_rgb(255, 255, 255), 3, 3 + 10, 320 - 6, ALLEGRO_ALIGN_LEFT, game->data->text);
+	}
+
+	if (data->showlogo) {
+		al_draw_bitmap(data->logo, 0, 0, 0);
+	}
 }
 
 void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, ALLEGRO_EVENT* ev) {
+	TM_HandleEvent(data->timeline, ev);
 	// Called for each event in Allegro event queue.
 	// Here you can handle user input, expiring timers etc.
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_ESCAPE)) {
@@ -362,10 +549,18 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 		data->down = false;
 	}
 
+	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_FULLSTOP)) {
+		game->data->skip = true;
+	}
+
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_SPACE)) {
 		SelectSpritesheet(game, data->police, "ban");
 
 		SpawnEntity(game, data, data->x + sin(data->angle + ALLEGRO_PI / 2) * 10, data->y + cos(data->angle + ALLEGRO_PI / 2) * 10, data->angle, TYPE_BULLET);
+
+		int s = rand() % 10;
+		al_stop_sample_instance(data->bullets[s].sound);
+		al_play_sample_instance(data->bullets[s].sound);
 
 		data->pew = 10;
 	}
@@ -386,8 +581,8 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	struct GamestateResources* data = calloc(1, sizeof(struct GamestateResources));
 	progress(game); // report that we progressed with the loading, so the engine can move a progress bar
 
-	data->w = 4096;
-	data->h = 4096;
+	data->w = 8192;
+	data->h = 8192;
 	data->internet = al_create_bitmap(data->w, data->h);
 
 	data->bg = al_load_bitmap(GetDataFilePath(game, "bg.png"));
@@ -397,6 +592,7 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	int flags = al_get_new_bitmap_flags();
 	al_set_new_bitmap_flags(flags ^ ALLEGRO_MAG_LINEAR);
 	data->pixelator = CreateNotPreservedBitmap(320, 180);
+	data->logo = al_load_bitmap(GetDataFilePath(game, "logo.png"));
 
 	data->car = CreateCharacter(game, "car");
 	RegisterSpritesheet(game, data->car, "car");
@@ -436,6 +632,28 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 
 	al_set_new_bitmap_flags(flags);
 
+	for (int i = 0; i < 10; i++) {
+		char* filename = malloc(255 * sizeof(char));
+		snprintf(filename, 255, "bullet/%d.flac", i + 1);
+
+		data->bullets[i].sample = al_load_sample(GetDataFilePath(game, filename));
+		data->bullets[i].sound = al_create_sample_instance(data->bullets[i].sample);
+		al_attach_sample_instance_to_mixer(data->bullets[i].sound, game->audio.fx);
+		al_set_sample_instance_playmode(data->bullets[i].sound, ALLEGRO_PLAYMODE_ONCE);
+		free(filename);
+	}
+
+	for (int i = 0; i < 8; i++) {
+		char* filename = malloc(255 * sizeof(char));
+		snprintf(filename, 255, "explosions/%d.flac", i + 1);
+
+		data->explosions[i].sample = al_load_sample(GetDataFilePath(game, filename));
+		data->explosions[i].sound = al_create_sample_instance(data->explosions[i].sample);
+		al_attach_sample_instance_to_mixer(data->explosions[i].sound, game->audio.fx);
+		al_set_sample_instance_playmode(data->explosions[i].sound, ALLEGRO_PLAYMODE_ONCE);
+		free(filename);
+	}
+
 	return data;
 }
 
@@ -464,6 +682,8 @@ void Gamestate_Unload(struct Game* game, struct GamestateResources* data) {
 void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	// Called when this gamestate gets control. Good place for initializing state,
 	// playing music etc.
+
+	data->fake_counter = 2;
 
 	SelectSpritesheet(game, data->car, "car");
 	SelectSpritesheet(game, data->police, "normal");
@@ -499,18 +719,64 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	data->x = data->w / 2;
 	data->y = 3 * data->h / 4;
 
-	for (int i = 0; i < 32; i++) {
-		double angle = rand() / ALLEGRO_PI;
-		SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, TYPE_USER);
-	}
-	for (int i = 0; i < 4; i++) {
-		double angle = rand() / ALLEGRO_PI;
-		SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, TYPE_MESSAGE);
-	}
-	for (int i = 0; i < 2; i++) {
-		double angle = rand() / ALLEGRO_PI;
-		SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, TYPE_ENEMY);
-	}
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/zenek.flac"), 4, 1024), "To co dzisiaj robimy, Gienek?", "ZENEK"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/gienek.flac"), 4, 1024), "No jak to co Zenek, przejmujemy wladze nad swiatem!", "GIENEK"), "speak");
+	TM_AddAction(data->timeline, &ShowLogo, TM_AddToArgs(NULL, 1, data), "logo");
+	TM_AddDelay(data->timeline, 5000);
+	TM_AddAction(data->timeline, &HideLogo, TM_AddToArgs(NULL, 1, data), "logo");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/intro1.flac"), 4, 1024), "*dryn dryn*", "TELEFON"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/intro2.flac"), 4, 1024), "Halo, policja? Prosze przyjechac na Fejsbuga™!", "GLOS Z TELEFONU"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/intro3.flac"), 4, 1024), "Sie robi.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &StartGame, TM_AddToArgs(NULL, 1, data), "start");
+
+	TM_AddDelay(data->timeline, 2000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/1.flac"), 4, 1024), "Nazywam sie Zieba. Komisarz Zieba.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/2.flac"), 4, 1024), "Dbam o porzadek na Fejsbugu™, by nikt nie przeszkadzal uzytkownikom wiesc ich spokojnego uzytkowniczego zycia.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/3.flac"), 4, 1024), "Poruszam sie moim cybernetycznym poduszkowcem po cyberprzestrzeni za pomoca KLAWISZY STRZALEK", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/4.flac"), 4, 1024), "a wymierzam sprawiedliwosc moim wiernym Banhammerem za pomoca SPACJI.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddDelay(data->timeline, 1000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/5.flac"), 4, 1024), "Swietnie.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddDelay(data->timeline, 1000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/6.flac"), 4, 1024), "Znowu ktos wypuszcza Fake Newsy.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/7.flac"), 4, 1024), "Musze je unicestwic zanim uzytkownicy znajda sie pod ich wplywem.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &SpawnSingleFake, TM_AddToArgs(NULL, 1, data), "spawnsinglenews");
+
+	TM_AddDelay(data->timeline, 4000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/8.flac"), 4, 1024), "I po sprawie.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddDelay(data->timeline, 2000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/9.flac"), 4, 1024), "Oto i jest. Manipulator.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/10.flac"), 4, 1024), "Nastawia ludzi przeciwko sobie, aby byli podatni na manipulacje, zeby ich zmanipulowac.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &SpawnSingleEnemy, TM_AddToArgs(NULL, 1, data), "spawnsinglenews");
+
+	TM_AddDelay(data->timeline, 4000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/12.flac"), 4, 1024), "Jest ich wiecej.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &SpawnEnemies, TM_AddToArgs(NULL, 1, data), "spawn");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/ostroznie2.flac"), 4, 1024), "Nie moge banowac zwyklych uzytkownikow i ich zwyklych tresci, bo zaczna sie buntowac.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/13.flac"), 4, 1024), "Gdy uzytkownicy przekrocza Pulap Spolecznego Zgrzytania Zebami Przeciwko Sobie, zamkna sie w swoich bankach informacyjnych i beda pod pelna kontrola zloczynców.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/14.flac"), 4, 1024), "Nie moge do tego dopuscic.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddDelay(data->timeline, 20000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/16.flac"), 4, 1024), "Zle sily rosna w sile. Usiluja ze mna wygrac, ale jestem silniejszy.", "KOMISARZ ZIEBA"), "speak");
 }
 
 void Gamestate_Stop(struct Game* game, struct GamestateResources* data) {

@@ -20,7 +20,10 @@
 
 struct CommonResources {
 	// Fill in with common data accessible from all gamestates.
-	bool unused;
+	char* text;
+	char* person;
+	bool skip;
+	//ALLEGRO_AUDIO_STREAM* stream;
 };
 
 void DrawCentered(ALLEGRO_BITMAP* bitmap, int x, int y, int flags);
