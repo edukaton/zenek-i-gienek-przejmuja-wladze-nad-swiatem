@@ -72,6 +72,7 @@ struct GamestateResources {
 	bool move;
 	bool showlogo;
 	ALLEGRO_BITMAP *logo, *endscreen, *endscreen1, *endscreen2, *endscreen3;
+	ALLEGRO_AUDIO_STREAM *music1, *music2;
 	int fade;
 
 	struct {
@@ -187,6 +188,8 @@ static bool StartGame(struct Game* game, struct TM_Action* action, enum TM_Actio
 
 	if (state == TM_ACTIONSTATE_START) {
 		data->move = true;
+		al_set_audio_stream_playing(data->music1, true);
+		al_set_audio_stream_playing(data->music2, false);
 	}
 	return true;
 }
@@ -217,6 +220,17 @@ static struct Entity* SpawnEntity(struct Game* game, struct GamestateResources* 
 	}
 
 	return &data->entities[id];
+}
+
+static bool PlayGameMusic(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		al_set_audio_stream_playing(data->music1, false);
+		al_set_audio_stream_playing(data->music2, true);
+	}
+
+	return true;
 }
 
 static bool SpawnEnemies(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
@@ -280,6 +294,9 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 		int s = rand() % 8;
 		al_stop_sample_instance(data->explosions[s].sound);
 		al_play_sample_instance(data->explosions[s].sound);
+		al_set_audio_stream_playing(data->music1, false);
+		al_set_audio_stream_playing(data->music2, false);
+
 		data->ended = true;
 		TM_CleanQueue(data->timeline);
 		TM_AddDelay(data->timeline, 2000);
@@ -673,6 +690,15 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	data->endscreen2 = al_load_bitmap(GetDataFilePath(game, "outro2.png"));
 	data->endscreen3 = al_load_bitmap(GetDataFilePath(game, "outro3.png"));
 
+	data->music1 = al_load_audio_stream(GetDataFilePath(game, "song1.flac"), 4, 1024);
+	al_set_audio_stream_playing(data->music1, false);
+	al_set_audio_stream_playmode(data->music1, ALLEGRO_PLAYMODE_LOOP);
+	al_attach_audio_stream_to_mixer(data->music1, game->audio.music);
+	data->music2 = al_load_audio_stream(GetDataFilePath(game, "song2.flac"), 4, 1024);
+	al_set_audio_stream_playmode(data->music2, ALLEGRO_PLAYMODE_LOOP);
+	al_set_audio_stream_playing(data->music2, false);
+	al_attach_audio_stream_to_mixer(data->music2, game->audio.music);
+
 	data->car = CreateCharacter(game, "car");
 	RegisterSpritesheet(game, data->car, "car");
 	LoadSpritesheets(game, data->car);
@@ -755,6 +781,9 @@ void Gamestate_Unload(struct Game* game, struct GamestateResources* data) {
 	al_destroy_font(data->font);
 	al_destroy_font(data->bff);
 
+	al_destroy_audio_stream(data->music1);
+
+	al_destroy_audio_stream(data->music2);
 	free(data);
 }
 
@@ -762,6 +791,7 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	// Called when this gamestate gets control. Good place for initializing state,
 	// playing music etc.
 
+	al_set_mixer_gain(game->audio.music, 0.2);
 	data->fake_counter = 2;
 
 	SelectSpritesheet(game, data->car, "car");
@@ -854,6 +884,8 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/13.flac"), 4, 1024), "Gdy uzytkownicy przekrocza Pulap Spolecznego Zgrzytania Zebami Przeciwko Sobie, zamkna sie w swoich bankach informacyjnych i beda pod pelna kontrola zloczynców.", "KOMISARZ ZIEBA"), "speak");
 
 	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/14.flac"), 4, 1024), "Nie moge do tego dopuscic.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddAction(data->timeline, &PlayGameMusic, TM_AddToArgs(NULL, 1, data), "spawn");
 
 	TM_AddDelay(data->timeline, 20000);
 
