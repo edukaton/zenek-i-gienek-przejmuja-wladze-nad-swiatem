@@ -68,6 +68,7 @@ struct GamestateResources {
 	int count;
 	int pew;
 	int tilt;
+	bool showscore;
 
 	bool move;
 	bool showlogo;
@@ -90,7 +91,7 @@ struct GamestateResources {
 	bool ended;
 };
 
-int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
+int Gamestate_ProgressCount = 37; // number of loading steps as reported by Gamestate_Load
 
 /* Function: al_transform_coordinates_4d
  */
@@ -160,6 +161,9 @@ static bool ShowLogo(struct Game* game, struct TM_Action* action, enum TM_Action
 
 	if (state == TM_ACTIONSTATE_START) {
 		data->showlogo = true;
+		int s = rand() % 8;
+		al_stop_sample_instance(data->explosions[s].sound);
+		al_play_sample_instance(data->explosions[s].sound);
 	}
 	return true;
 }
@@ -190,6 +194,18 @@ static bool StartGame(struct Game* game, struct TM_Action* action, enum TM_Actio
 		data->move = true;
 		al_set_audio_stream_playing(data->music1, true);
 		al_set_audio_stream_playing(data->music2, false);
+	}
+	return true;
+}
+
+static bool ShowScore(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+
+	if (state == TM_ACTIONSTATE_START) {
+		data->showscore = true;
+		int s = rand() % 8;
+		al_stop_sample_instance(data->explosions[s].sound);
+		al_play_sample_instance(data->explosions[s].sound);
 	}
 	return true;
 }
@@ -310,6 +326,7 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 
 		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 2, data, data->endscreen3), "switch");
 
+		TM_AddAction(data->timeline, &ShowScore, TM_AddToArgs(NULL, 1, data), "score");
 		return;
 	}
 
@@ -465,6 +482,10 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 		if (data->endscreen) {
 			al_set_target_backbuffer(game->display);
 			al_draw_bitmap(data->endscreen, 0, 0, 0);
+
+			if (data->showscore) {
+				al_draw_textf(data->bff, al_map_rgb(255, 255, 255), 320 / 2, 115, ALLEGRO_ALIGN_CENTER, "%d", data->score);
+			}
 		}
 		return;
 	}
@@ -672,69 +693,77 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	// require main OpenGL context.
 
 	struct GamestateResources* data = calloc(1, sizeof(struct GamestateResources));
-	progress(game); // report that we progressed with the loading, so the engine can move a progress bar
 
 	data->w = 8192;
 	data->h = 8192;
 	data->internet = al_create_bitmap(data->w, data->h);
+	progress(game); // report that we progressed with the loading, so the engine can move a progress bar
 
 	data->bg = al_load_bitmap(GetDataFilePath(game, "bg.png"));
-
+	progress(game);
 	data->timeline = TM_Init(game, "timeline");
 
 	int flags = al_get_new_bitmap_flags();
 	al_set_new_bitmap_flags(flags ^ ALLEGRO_MAG_LINEAR);
 	data->pixelator = CreateNotPreservedBitmap(320, 180);
+	progress(game);
 	data->logo = al_load_bitmap(GetDataFilePath(game, "logo.png"));
+	progress(game);
 	data->endscreen1 = al_load_bitmap(GetDataFilePath(game, "outro1.png"));
+	progress(game);
 	data->endscreen2 = al_load_bitmap(GetDataFilePath(game, "outro2.png"));
+	progress(game);
 	data->endscreen3 = al_load_bitmap(GetDataFilePath(game, "outro3.png"));
+	progress(game);
 
 	data->music1 = al_load_audio_stream(GetDataFilePath(game, "song1.flac"), 4, 1024);
 	al_set_audio_stream_playing(data->music1, false);
 	al_set_audio_stream_playmode(data->music1, ALLEGRO_PLAYMODE_LOOP);
 	al_attach_audio_stream_to_mixer(data->music1, game->audio.music);
+	progress(game);
 	data->music2 = al_load_audio_stream(GetDataFilePath(game, "song2.flac"), 4, 1024);
 	al_set_audio_stream_playmode(data->music2, ALLEGRO_PLAYMODE_LOOP);
 	al_set_audio_stream_playing(data->music2, false);
 	al_attach_audio_stream_to_mixer(data->music2, game->audio.music);
+	progress(game);
 
 	data->car = CreateCharacter(game, "car");
 	RegisterSpritesheet(game, data->car, "car");
 	LoadSpritesheets(game, data->car);
-
+	progress(game);
 	data->police = CreateCharacter(game, "police");
 	RegisterSpritesheet(game, data->police, "normal");
 	RegisterSpritesheet(game, data->police, "ban");
 	LoadSpritesheets(game, data->police);
-
+	progress(game);
 	data->teeth = CreateCharacter(game, "teeth");
 	RegisterSpritesheet(game, data->teeth, "teeth");
 	LoadSpritesheets(game, data->teeth);
-
+	progress(game);
 	data->user = CreateCharacter(game, "user");
 	RegisterSpritesheet(game, data->user, "user");
 	LoadSpritesheets(game, data->user);
-
+	progress(game);
 	data->fake = CreateCharacter(game, "fake");
 	RegisterSpritesheet(game, data->fake, "fake");
 	LoadSpritesheets(game, data->fake);
-
+	progress(game);
 	data->news = CreateCharacter(game, "news");
 	RegisterSpritesheet(game, data->news, "news");
 	LoadSpritesheets(game, data->news);
-
+	progress(game);
 	data->bad = CreateCharacter(game, "bad");
 	RegisterSpritesheet(game, data->bad, "bad");
 	LoadSpritesheets(game, data->bad);
-
+	progress(game);
 	data->explosion = CreateCharacter(game, "explosion");
 	RegisterSpritesheet(game, data->explosion, "explosion");
 	LoadSpritesheets(game, data->explosion);
-
+	progress(game);
 	data->font = al_load_font(GetDataFilePath(game, "fonts/MonkeyIsland.ttf"), 8, ALLEGRO_TTF_MONOCHROME);
+	progress(game);
 	data->bff = al_load_font(GetDataFilePath(game, "fonts/MonkeyIsland.ttf"), 32, ALLEGRO_TTF_MONOCHROME);
-
+	progress(game);
 	al_set_new_bitmap_flags(flags);
 
 	for (int i = 0; i < 10; i++) {
@@ -746,6 +775,7 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 		al_attach_sample_instance_to_mixer(data->bullets[i].sound, game->audio.fx);
 		al_set_sample_instance_playmode(data->bullets[i].sound, ALLEGRO_PLAYMODE_ONCE);
 		free(filename);
+		progress(game);
 	}
 
 	for (int i = 0; i < 8; i++) {
@@ -757,6 +787,7 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 		al_attach_sample_instance_to_mixer(data->explosions[i].sound, game->audio.fx);
 		al_set_sample_instance_playmode(data->explosions[i].sound, ALLEGRO_PLAYMODE_ONCE);
 		free(filename);
+		progress(game);
 	}
 
 	return data;
@@ -769,6 +800,10 @@ void Gamestate_Unload(struct Game* game, struct GamestateResources* data) {
 	al_destroy_bitmap(data->internet);
 	al_destroy_bitmap(data->pixelator);
 	al_destroy_bitmap(data->bg);
+	al_destroy_bitmap(data->logo);
+	al_destroy_bitmap(data->endscreen1);
+	al_destroy_bitmap(data->endscreen2);
+	al_destroy_bitmap(data->endscreen3);
 	DestroyCharacter(game, data->police);
 	DestroyCharacter(game, data->car);
 	DestroyCharacter(game, data->teeth);
@@ -784,6 +819,15 @@ void Gamestate_Unload(struct Game* game, struct GamestateResources* data) {
 	al_destroy_audio_stream(data->music1);
 
 	al_destroy_audio_stream(data->music2);
+
+	for (int i = 0; i < 10; i++) {
+		al_destroy_sample_instance(data->bullets[i].sound);
+		al_destroy_sample(data->bullets[i].sample);
+	}
+	for (int i = 0; i < 8; i++) {
+		al_destroy_sample_instance(data->explosions[i].sound);
+		al_destroy_sample(data->explosions[i].sample);
+	}
 	free(data);
 }
 
@@ -791,7 +835,9 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	// Called when this gamestate gets control. Good place for initializing state,
 	// playing music etc.
 
-	al_set_mixer_gain(game->audio.music, 0.2);
+	al_set_mixer_gain(game->audio.music, 0.25);
+	al_set_mixer_gain(game->audio.fx, 1.0);
+	al_set_mixer_gain(game->audio.voice, 2.0);
 	data->fake_counter = 2;
 
 	SelectSpritesheet(game, data->car, "car");
@@ -890,6 +936,18 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	TM_AddDelay(data->timeline, 20000);
 
 	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/16.flac"), 4, 1024), "Zle sily rosna w sile. Usiluja ze mna wygrac, ale jestem silniejszy.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddDelay(data->timeline, 30000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/17.flac"), 4, 1024), "Jedziemy dalej.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddDelay(data->timeline, 30000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/15.flac"), 4, 1024), "Kolejna fala. Tym razem bedzie trudniej.", "KOMISARZ ZIEBA"), "speak");
+
+	TM_AddDelay(data->timeline, 15000);
+
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/bannivederci.flac"), 4, 1024), "Bannivederci!", "KOMISARZ ZIEBA"), "speak");
 }
 
 void Gamestate_Stop(struct Game* game, struct GamestateResources* data) {
