@@ -30,7 +30,7 @@ int Gamestate_ProgressCount = -1;
 
 void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, ALLEGRO_EVENT* ev){};
 
-void Gamestate_Logic(struct Game* game, struct GamestateResources* data){};
+void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double delta){};
 
 void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	al_draw_filled_rectangle(0, game->viewport.height * 0.98, game->viewport.width, game->viewport.height, al_map_rgba(32, 32, 32, 32));

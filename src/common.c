@@ -31,6 +31,7 @@ bool GlobalEventHandler(struct Game* game, ALLEGRO_EVENT* ev) {
 			SetConfigOption(game, "SuperDerpy", "fullscreen", "0");
 			al_show_mouse_cursor(game->display);
 		}
+		al_set_display_flag(game->display, ALLEGRO_FRAMELESS, game->config.fullscreen);
 		al_set_display_flag(game->display, ALLEGRO_FULLSCREEN_WINDOW, game->config.fullscreen);
 		SetupViewport(game, game->viewport_config);
 		PrintConsole(game, "Fullscreen toggled");

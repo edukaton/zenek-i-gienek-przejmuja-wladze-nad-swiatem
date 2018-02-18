@@ -22,7 +22,7 @@
 #include <libsuperderpy.h>
 #include <math.h>
 
-#define NEXT_GAMESTATE "example"
+#define NEXT_GAMESTATE "empty"
 #define SKIP_GAMESTATE NEXT_GAMESTATE
 
 struct GamestateResources {
@@ -94,7 +94,7 @@ static bool Type(struct Game* game, struct TM_Action* action, enum TM_ActionStat
 }
 //==================================Timeline manager actions END
 
-void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
+void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double delta) {
 	TM_Process(data->timeline);
 	data->tick++;
 	if (data->tick == 30) {

@@ -30,7 +30,7 @@ struct GamestateResources {
 
 int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
 
-void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
+void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double delta) {
 	// Called 60 times per second (by default). Here you should do all your game logic.
 	data->blink_counter++;
 	if (data->blink_counter >= 60) {
