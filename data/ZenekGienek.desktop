@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Zenek i Gienek przejmują władzę nad światem
+Exec=ZenekGienek
+Comment=
+Icon=ZenekGienek
+Terminal=false
+Categories=Game;ArcadeGame;
