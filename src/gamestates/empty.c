@@ -50,7 +50,7 @@ struct GamestateResources {
 
 	bool up, left, down, right;
 
-	struct Character *car, *police, *teeth, *user, *fake, *news, *bad;
+	struct Character *car, *police, *teeth, *user, *fake, *news, *bad, *explosion;
 
 	struct Timeline* timeline;
 
@@ -59,6 +59,7 @@ struct GamestateResources {
 
 	int count;
 	int pew;
+	int tilt;
 };
 
 int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
@@ -98,6 +99,7 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 	AnimateCharacter(game, data->fake, delta, 1.0);
 	AnimateCharacter(game, data->news, delta, 1.0);
 	AnimateCharacter(game, data->bad, delta, 1.0);
+	AnimateCharacter(game, data->explosion, delta, 1.0);
 
 	if (data->left) {
 		data->angle -= 0.02;
@@ -124,6 +126,23 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 		data->pew--;
 	}
 
+	if (data->tilt) {
+		data->tilt--;
+	}
+
+	for (int j = 0; j < 8192; j++) {
+		if (data->entities[j].used) {
+			if ((data->entities[j].type != TYPE_BULLET) && (data->entities[j].type != TYPE_EXPLOSION)) {
+				if ((fabs(data->x - data->entities[j].x) < 12) && (fabs(data->y - data->entities[j].y) < 12)) {
+					data->entities[j].type = TYPE_EXPLOSION;
+					data->entities[j].distance = 0;
+					data->tilt += 20;
+					break;
+				}
+			}
+		}
+	}
+
 	for (int i = 0; i < 8192; i++) {
 		if (data->entities[i].used) {
 			if (data->entities[i].type == TYPE_BULLET) {
@@ -135,10 +154,22 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 				if (data->entities[i].distance > 300) {
 					data->entities[i].used = false;
 				}
-			}
-		}
 
-		if (data->entities[i].used) {
+				for (int j = 0; j < 8192; j++) {
+					if (data->entities[j].used) {
+						if ((data->entities[j].type != TYPE_BULLET) && (data->entities[j].type != TYPE_EXPLOSION)) {
+							if ((fabs(data->entities[i].x - data->entities[j].x) < 8) && (fabs(data->entities[i].y - data->entities[j].y) < 8)) {
+								data->entities[j].type = TYPE_EXPLOSION;
+								data->entities[j].distance = 0;
+								data->entities[i].used = false;
+								data->tilt += 20;
+								break;
+							}
+						}
+					}
+				}
+			}
+
 			if ((data->entities[i].type == TYPE_USER) || (data->entities[i].type == TYPE_ENEMY)) {
 				data->entities[i].x += sin(data->entities[i].angle) * 0.5;
 				data->entities[i].y += cos(data->entities[i].angle) * 0.5;
@@ -156,6 +187,13 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 							SpawnEntity(game, data, data->entities[i].x, data->entities[i].y, 0, TYPE_MESSAGE);
 						}
 					}
+				}
+			}
+
+			if (data->entities[i].type == TYPE_EXPLOSION) {
+				data->entities[i].distance++;
+				if (data->entities[i].distance > 16) {
+					data->entities[i].used = false;
 				}
 			}
 		}
@@ -182,6 +220,9 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	//al_translate_transform(&transform, 0, -180 / 2);
 	al_translate_transform(&transform, 0, -180 / 4);
 	al_rotate_transform_3d(&transform, 1, 0, 0, 0.005);
+	if (data->tilt) {
+		al_translate_transform(&transform, rand() % 3 - 1, rand() % 3 - 1);
+	}
 	al_compose_transform(&transform, &camera);
 
 	al_identity_transform(&perspective);
@@ -233,6 +274,9 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 			}
 			if (data->entities[i].type == TYPE_ENEMY) {
 				DrawCentered(data->bad->bitmap, x, y, 0);
+			}
+			if (data->entities[i].type == TYPE_EXPLOSION) {
+				DrawCentered(data->explosion->bitmap, x, y, 0);
 			}
 
 			if (((data->entities[i].type == TYPE_ENEMY) || (data->entities[i].type == TYPE_FAKE)) && (z > 0)) {
@@ -383,6 +427,10 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	RegisterSpritesheet(game, data->bad, "bad");
 	LoadSpritesheets(game, data->bad);
 
+	data->explosion = CreateCharacter(game, "explosion");
+	RegisterSpritesheet(game, data->explosion, "explosion");
+	LoadSpritesheets(game, data->explosion);
+
 	data->font = al_load_font(GetDataFilePath(game, "fonts/MonkeyIsland.ttf"), 8, ALLEGRO_TTF_MONOCHROME);
 	data->bff = al_load_font(GetDataFilePath(game, "fonts/MonkeyIsland.ttf"), 32, ALLEGRO_TTF_MONOCHROME);
 
@@ -405,6 +453,7 @@ void Gamestate_Unload(struct Game* game, struct GamestateResources* data) {
 	DestroyCharacter(game, data->fake);
 	DestroyCharacter(game, data->news);
 	DestroyCharacter(game, data->bad);
+	DestroyCharacter(game, data->explosion);
 	TM_Destroy(data->timeline);
 	al_destroy_font(data->font);
 	al_destroy_font(data->bff);
@@ -423,6 +472,7 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	SelectSpritesheet(game, data->fake, "fake");
 	SelectSpritesheet(game, data->news, "news");
 	SelectSpritesheet(game, data->bad, "bad");
+	SelectSpritesheet(game, data->explosion, "explosion");
 
 	data->angle = ALLEGRO_PI;
 
@@ -447,7 +497,7 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	al_set_target_backbuffer(game->display);
 
 	data->x = data->w / 2;
-	data->y = data->h / 2;
+	data->y = 3 * data->h / 4;
 
 	for (int i = 0; i < 32; i++) {
 		double angle = rand() / ALLEGRO_PI;
