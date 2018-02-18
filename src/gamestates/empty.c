@@ -21,6 +21,7 @@
 #include "../common.h"
 #include <libsuperderpy.h>
 #include <math.h>
+#include <stdio.h>
 
 enum ENTITY_TYPE {
 	TYPE_ENEMY,
@@ -70,7 +71,7 @@ struct GamestateResources {
 
 	bool move;
 	bool showlogo;
-	ALLEGRO_BITMAP* logo;
+	ALLEGRO_BITMAP *logo, *endscreen, *endscreen1, *endscreen2, *endscreen3;
 	int fade;
 
 	struct {
@@ -84,9 +85,43 @@ struct GamestateResources {
 		ALLEGRO_SAMPLE_INSTANCE* sound;
 		bool used;
 	} explosions[8];
+
+	bool ended;
 };
 
 int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
+
+/* Function: al_transform_coordinates_4d
+ */
+void al_transform_coordinates_4d(const ALLEGRO_TRANSFORM* trans,
+  float* x, float* y, float* z, float* w) {
+	float rx, ry, rz, rw;
+
+#define M(i, j) trans->m[i][j]
+
+	rx = M(0, 0) * *x + M(1, 0) * *y + M(2, 0) * *z + M(3, 0) * *w;
+	ry = M(0, 1) * *x + M(1, 1) * *y + M(2, 1) * *z + M(3, 1) * *w;
+	rz = M(0, 2) * *x + M(1, 2) * *y + M(2, 2) * *z + M(3, 2) * *w;
+	rw = M(0, 3) * *x + M(1, 3) * *y + M(2, 3) * *z + M(3, 3) * *w;
+
+#undef M
+
+	*x = rx;
+	*y = ry;
+	*z = rz;
+	*w = rw;
+}
+
+/* Function: al_transform_coordinates_3d_projective
+ */
+void al_transform_coordinates_3d_projective(const ALLEGRO_TRANSFORM* trans,
+  float* x, float* y, float* z) {
+	float w = 1;
+	al_transform_coordinates_4d(trans, x, y, z, &w);
+	*x /= w;
+	*y /= w;
+	*z /= w;
+}
 
 static bool Speak(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
 	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
@@ -127,6 +162,17 @@ static bool ShowLogo(struct Game* game, struct TM_Action* action, enum TM_Action
 	}
 	return true;
 }
+
+static bool SwitchEndScreen(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
+	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
+	ALLEGRO_BITMAP* screen = TM_GetArg(action->arguments, 1);
+
+	if (state == TM_ACTIONSTATE_START) {
+		data->endscreen = screen;
+	}
+	return true;
+}
+
 static bool HideLogo(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
 	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
 
@@ -215,6 +261,11 @@ static bool SpawnSingleEnemy(struct Game* game, struct TM_Action* action, enum T
 void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double delta) {
 	// Called 60 times per second (by default). Here you should do all your game logic.
 	TM_Process(data->timeline);
+
+	if (data->ended) {
+		return;
+	}
+
 	data->count++;
 
 	if (!data->move) {
@@ -226,7 +277,23 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 	}
 
 	if (data->fake_counter > 64) {
-		UnloadAllGamestates(game);
+		int s = rand() % 8;
+		al_stop_sample_instance(data->explosions[s].sound);
+		al_play_sample_instance(data->explosions[s].sound);
+		data->ended = true;
+		TM_CleanQueue(data->timeline);
+		TM_AddDelay(data->timeline, 2000);
+
+		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 2, data, data->endscreen1), "switch");
+
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/outro1.flac"), 4, 1024), "", ""), "speak");
+		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 2, data, data->endscreen2), "switch");
+
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/outro2.flac"), 4, 1024), "", ""), "speak");
+
+		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 2, data, data->endscreen3), "switch");
+
+		return;
 	}
 
 	AnimateCharacter(game, data->car, delta, 1.0);
@@ -376,6 +443,15 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	// Called as soon as possible, but no sooner than next Gamestate_Logic call.
 	// Draw everything to the screen here.
 	//al_draw_scaled_bitmap(data->internet, 0, 0, 4096, 4096, 0, 0, 320, 180, 0);
+
+	if (data->ended) {
+		if (data->endscreen) {
+			al_set_target_backbuffer(game->display);
+			al_draw_bitmap(data->endscreen, 0, 0, 0);
+		}
+		return;
+	}
+
 	ALLEGRO_TRANSFORM transform, perspective, camera;
 
 	al_set_target_bitmap(data->pixelator);
@@ -507,7 +583,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	}
 
 	if (data->showlogo) {
-		al_draw_bitmap(data->logo, 0, 0, 0);
+		al_draw_bitmap(data->logo, 0, (int)(sin(data->count / 10.0) * 6) + 3, 0);
 	}
 }
 
@@ -593,6 +669,9 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	al_set_new_bitmap_flags(flags ^ ALLEGRO_MAG_LINEAR);
 	data->pixelator = CreateNotPreservedBitmap(320, 180);
 	data->logo = al_load_bitmap(GetDataFilePath(game, "logo.png"));
+	data->endscreen1 = al_load_bitmap(GetDataFilePath(game, "outro1.png"));
+	data->endscreen2 = al_load_bitmap(GetDataFilePath(game, "outro2.png"));
+	data->endscreen3 = al_load_bitmap(GetDataFilePath(game, "outro3.png"));
 
 	data->car = CreateCharacter(game, "car");
 	RegisterSpritesheet(game, data->car, "car");
@@ -718,6 +797,8 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 
 	data->x = data->w / 2;
 	data->y = 3 * data->h / 4;
+
+	TM_AddDelay(data->timeline, 1500);
 
 	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/zenek.flac"), 4, 1024), "To co dzisiaj robimy, Gienek?", "ZENEK"), "speak");
 	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/gienek.flac"), 4, 1024), "No jak to co Zenek, przejmujemy wladze nad swiatem!", "GIENEK"), "speak");

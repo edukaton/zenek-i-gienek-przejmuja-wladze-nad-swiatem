@@ -12,6 +12,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_SOURCE_DIR}/l
 include(libsuperderpy)
 include(SetPaths)
 
+SET(EMSCRIPTEN_TOTAL_MEMORY "640")
+
 add_subdirectory(libsuperderpy)
 add_subdirectory(src)
 add_subdirectory(data)
