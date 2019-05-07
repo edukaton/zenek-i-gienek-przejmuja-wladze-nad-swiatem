@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2019 Sebastian Krzyszkowiak <dos@dosowisko.net> -->
+<component type="desktop-application">
+  <id>net.dosowisko.ZenekGienek</id>
+  <metadata_license>FSFAP</metadata_license>
+  <project_license>GPL-3.0+</project_license>
+  <name>Zenek i Gienek przejmują władzę nad światem</name>
+  <summary>Wciel się w Komisarza Ziębę, zanurz się w cyberprzestrzeni i nie pozwól, aby Zenek i Gienek przejęli władzę nad światem.</summary>
+
+  <description>
+<p>Gra przygotowana podczas Edukatonu w Warszawie, pod hasłem "pół prawdy to całe kłamstwo".</p>
+
+<p>Część dźwięków i grafik autorstwa Agaty Nawrot.</p>
+
+<p>Gra korzysta z Allegro 5.2.</p>
+  </description>
+
+  <launchable type="desktop-id">zenekgienek.desktop</launchable>
+
+  <developer_name>dosowisko.net</developer_name>
+
+  <update_contact>dos_AT_dosowisko.net</update_contact>
+
+  <provides>
+    <binary>zenekgienek</binary>
+  </provides>
+
+</component>

@@ -2,8 +2,8 @@
 Type=Application
 Version=1.0
 Name=Zenek i Gienek przejmują władzę nad światem
-Exec=ZenekGienek
+Exec=zenekgienek
 Comment=
-Icon=ZenekGienek
+Icon=zenekgienek
 Terminal=false
 Categories=Game;ArcadeGame;

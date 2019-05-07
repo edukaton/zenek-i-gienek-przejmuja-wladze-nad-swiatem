@@ -12,10 +12,10 @@ Eksperymentalna wersja w przeglądarce: https://dosowisko.net/zenekgienek/
 
 Kompilacja:
 
-	git submodule update --init
+	git submodule update --init --recursive
 	mkdir build
 	cd build
 	cmake ..
 	make
 	cd ..
-	build/src/ZenekGienek
+	build/src/zenekgienek

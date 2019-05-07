@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 
 project(ZenekGienek C)
 
-SET(LIBSUPERDERPY_GAMENAME "ZenekGienek" CACHE INTERNAL "")
+SET(LIBSUPERDERPY_GAMENAME "zenekgienek" CACHE INTERNAL "")
 SET(LIBSUPERDERPY_GAMENAME_PRETTY "Zenek i Gienek przejmują władzę nad światem" CACHE INTERNAL "")
 
 SET(LIBSUPERDERPY_APPID "net.dosowisko.ZenekGienek")

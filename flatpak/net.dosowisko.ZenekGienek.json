@@ -3,9 +3,9 @@
 "runtime": "org.freedesktop.Platform",
 "runtime-version": "18.08",
 "sdk": "org.freedesktop.Sdk",
-"command": "ZenekGienek",
-"rename-icon": "ZenekGienek",
-"rename-desktop-file": "ZenekGienek.desktop",
+"command": "zenekgienek",
+"rename-icon": "zenekgienek",
+"rename-desktop-file": "zenekgienek.desktop",
 "finish-args": [
    "--socket=x11",
    "--socket=pulseaudio",
@@ -29,7 +29,7 @@
     ]
   },
   {
-    "name": "ZenekGienek",
+    "name": "zenekgienek",
     "buildsystem": "cmake-ninja",
     "build-options": {
        "config-opts": ["-DCMAKE_BUILD_TYPE=RelWithDebInfo"]
