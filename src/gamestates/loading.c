@@ -34,7 +34,7 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 
 void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	al_draw_filled_rectangle(0, game->viewport.height * 0.98, game->viewport.width, game->viewport.height, al_map_rgba(32, 32, 32, 32));
-	al_draw_filled_rectangle(0, game->viewport.height * 0.98, game->loading_progress * game->viewport.width, game->viewport.height, al_map_rgba(128, 128, 128, 128));
+	al_draw_filled_rectangle(0, game->viewport.height * 0.98, game->loading.progress * game->viewport.width, game->viewport.height, al_map_rgba(128, 128, 128, 128));
 };
 
 void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {

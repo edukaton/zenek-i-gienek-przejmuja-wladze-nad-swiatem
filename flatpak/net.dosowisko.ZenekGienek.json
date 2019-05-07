@@ -1,0 +1,45 @@
+{
+"app-id": "net.dosowisko.ZenekGienek",
+"runtime": "org.freedesktop.Platform",
+"runtime-version": "18.08",
+"sdk": "org.freedesktop.Sdk",
+"command": "ZenekGienek",
+"rename-icon": "ZenekGienek",
+"rename-desktop-file": "ZenekGienek.desktop",
+"finish-args": [
+   "--socket=x11",
+   "--socket=pulseaudio",
+   "--device=dri",
+   "--share=ipc"
+],
+"cleanup": ["/include", "/lib/pkgconfig", "/lib/*.a", "/lib/*.la", "/share/aclocal", "/share/doc", "/bin/test_physfs"],
+"modules": [
+  {
+    "name": "allegro5",
+    "buildsystem": "cmake-ninja",
+    "build-options": {
+       "config-opts": ["-DGL_BUILD_TYPE=gles2+", "-DWANT_DEMO=OFF", "-DWANT_EXAMPLES=OFF", "-DCMAKE_BUILD_TYPE=RelWithDebInfo"]
+    },
+    "sources": [
+      {
+        "type": "git",
+        "branch": "dos",
+        "url": "git://github.com/dos1/allegro5"
+      }
+    ]
+  },
+  {
+    "name": "ZenekGienek",
+    "buildsystem": "cmake-ninja",
+    "build-options": {
+       "config-opts": ["-DCMAKE_BUILD_TYPE=RelWithDebInfo"]
+    },
+    "sources": [
+      {
+        "type": "dir",
+        "path": ".."
+      }
+    ]
+  }
+]
+}

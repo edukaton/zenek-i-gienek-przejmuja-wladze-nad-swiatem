@@ -1,6 +1,7 @@
 /build*
 /stuff
-/CMakeLists.txt.user
+/data/stuff
+/CMakeLists.txt.user*
 /doc
 allegro.log
 SuperDerpy.ini
@@ -17,3 +18,7 @@ SuperDerpy.ini
 .Trashes
 ehthumbs.db
 Thumbs.db
+cmake-build-*
+.flatpak-builder
+imgui.ini
+.assetcache

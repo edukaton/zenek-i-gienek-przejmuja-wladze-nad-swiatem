@@ -91,12 +91,12 @@ struct GamestateResources {
 	bool ended;
 };
 
-int Gamestate_ProgressCount = 37; // number of loading steps as reported by Gamestate_Load
+int Gamestate_ProgressCount = 46; // number of loading steps as reported by Gamestate_Load
 
 /* Function: al_transform_coordinates_4d
  */
 void al_transform_coordinates_4d(const ALLEGRO_TRANSFORM* trans,
-  float* x, float* y, float* z, float* w) {
+	float* x, float* y, float* z, float* w) {
 	float rx, ry, rz, rw;
 
 #define M(i, j) trans->m[i][j]
@@ -117,7 +117,7 @@ void al_transform_coordinates_4d(const ALLEGRO_TRANSFORM* trans,
 /* Function: al_transform_coordinates_3d_projective
  */
 void al_transform_coordinates_3d_projective(const ALLEGRO_TRANSFORM* trans,
-  float* x, float* y, float* z) {
+	float* x, float* y, float* z) {
 	float w = 1;
 	al_transform_coordinates_4d(trans, x, y, z, &w);
 	*x /= w;
@@ -125,18 +125,17 @@ void al_transform_coordinates_3d_projective(const ALLEGRO_TRANSFORM* trans,
 	*z /= w;
 }
 
-static bool Speak(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-	ALLEGRO_AUDIO_STREAM* stream = TM_GetArg(action->arguments, 1);
-	char* text = TM_GetArg(action->arguments, 2);
-	char* person = TM_GetArg(action->arguments, 3);
+static TM_ACTION(Speak) {
+	ALLEGRO_AUDIO_STREAM* stream = TM_GetArg(action->arguments, 0);
+	char* text = TM_GetArg(action->arguments, 1);
+	char* person = TM_GetArg(action->arguments, 2);
 
-	if (state == TM_ACTIONSTATE_INIT) {
+	if (action->state == TM_ACTIONSTATE_INIT) {
 		al_set_audio_stream_playing(stream, false);
 		al_set_audio_stream_playmode(stream, ALLEGRO_PLAYMODE_ONCE);
 	}
 
-	if (state == TM_ACTIONSTATE_START) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		game->data->skip = false;
 		game->data->text = text;
 		game->data->person = person;
@@ -145,21 +144,19 @@ static bool Speak(struct Game* game, struct TM_Action* action, enum TM_ActionSta
 		al_set_audio_stream_playing(stream, true);
 	}
 
-	if (state == TM_ACTIONSTATE_RUNNING) {
+	if (action->state == TM_ACTIONSTATE_RUNNING) {
 		return !al_get_audio_stream_playing(stream) || game->data->skip;
 	}
 
-	if (state == TM_ACTIONSTATE_DESTROY) {
+	if (action->state == TM_ACTIONSTATE_DESTROY) {
 		al_destroy_audio_stream(stream);
 		game->data->text = NULL;
 	}
 	return false;
 }
 
-static bool ShowLogo(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(ShowLogo) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		data->showlogo = true;
 		int s = rand() % 8;
 		al_stop_sample_instance(data->explosions[s].sound);
@@ -168,29 +165,24 @@ static bool ShowLogo(struct Game* game, struct TM_Action* action, enum TM_Action
 	return true;
 }
 
-static bool SwitchEndScreen(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-	ALLEGRO_BITMAP* screen = TM_GetArg(action->arguments, 1);
+static TM_ACTION(SwitchEndScreen) {
+	ALLEGRO_BITMAP* screen = TM_GetArg(action->arguments, 0);
 
-	if (state == TM_ACTIONSTATE_START) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		data->endscreen = screen;
 	}
 	return true;
 }
 
-static bool HideLogo(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(HideLogo) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		data->showlogo = false;
 	}
 	return true;
 }
 
-static bool StartGame(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(StartGame) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		data->move = true;
 		al_set_audio_stream_playing(data->music1, true);
 		al_set_audio_stream_playing(data->music2, false);
@@ -198,10 +190,8 @@ static bool StartGame(struct Game* game, struct TM_Action* action, enum TM_Actio
 	return true;
 }
 
-static bool ShowScore(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(ShowScore) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		data->showscore = true;
 		int s = rand() % 8;
 		al_stop_sample_instance(data->explosions[s].sound);
@@ -238,10 +228,8 @@ static struct Entity* SpawnEntity(struct Game* game, struct GamestateResources* 
 	return &data->entities[id];
 }
 
-static bool PlayGameMusic(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(PlayGameMusic) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		al_set_audio_stream_playing(data->music1, false);
 		al_set_audio_stream_playing(data->music2, true);
 	}
@@ -249,10 +237,8 @@ static bool PlayGameMusic(struct Game* game, struct TM_Action* action, enum TM_A
 	return true;
 }
 
-static bool SpawnEnemies(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(SpawnEnemies) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		for (int i = 0; i < 32; i++) {
 			double angle = rand() / ALLEGRO_PI;
 			SpawnEntity(game, data, data->x + sin(angle) * (222 + rand() % 300), data->y + cos(angle) * (222 + rand() % 300), rand() / ALLEGRO_PI, TYPE_USER);
@@ -270,19 +256,15 @@ static bool SpawnEnemies(struct Game* game, struct TM_Action* action, enum TM_Ac
 	return true;
 }
 
-static bool SpawnSingleFake(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(SpawnSingleFake) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		SpawnEntity(game, data, data->x + sin(data->angle) * 200, data->y + cos(data->angle) * 200, rand() / ALLEGRO_PI, TYPE_FAKE);
 	}
 	return true;
 }
 
-static bool SpawnSingleEnemy(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-
-	if (state == TM_ACTIONSTATE_START) {
+static TM_ACTION(SpawnSingleEnemy) {
+	if (action->state == TM_ACTIONSTATE_START) {
 		SpawnEntity(game, data, data->x + sin(data->angle) * 200, data->y + cos(data->angle) * 200, rand() / ALLEGRO_PI, TYPE_ENEMY);
 	}
 	return true;
@@ -290,7 +272,7 @@ static bool SpawnSingleEnemy(struct Game* game, struct TM_Action* action, enum T
 
 void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double delta) {
 	// Called 60 times per second (by default). Here you should do all your game logic.
-	TM_Process(data->timeline);
+	TM_Process(data->timeline, delta);
 
 	if (data->ended) {
 		return;
@@ -315,18 +297,18 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double 
 
 		data->ended = true;
 		TM_CleanQueue(data->timeline);
-		TM_AddDelay(data->timeline, 2000);
+		TM_AddDelay(data->timeline, 2);
 
-		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 2, data, data->endscreen1), "switch");
+		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 1, data->endscreen1));
 
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/outro1.flac"), 4, 1024), "", ""), "speak");
-		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 2, data, data->endscreen2), "switch");
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/outro1.flac"), 4, 1024), "", ""));
+		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 1, data->endscreen2));
 
-		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/outro2.flac"), 4, 1024), "", ""), "speak");
+		TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/outro2.flac"), 4, 1024), "", ""));
 
-		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 2, data, data->endscreen3), "switch");
+		TM_AddAction(data->timeline, &SwitchEndScreen, TM_AddToArgs(NULL, 1, data->endscreen3));
 
-		TM_AddAction(data->timeline, &ShowScore, TM_AddToArgs(NULL, 1, data), "score");
+		TM_AddAction(data->timeline, &ShowScore, NULL);
 		return;
 	}
 
@@ -480,7 +462,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 
 	if (data->ended) {
 		if (data->endscreen) {
-			al_set_target_backbuffer(game->display);
+			SetFramebufferAsTarget(game);
 			al_draw_bitmap(data->endscreen, 0, 0, 0);
 
 			if (data->showscore) {
@@ -497,7 +479,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 
 	al_identity_transform(&camera);
 	al_build_camera_transform(&camera,
-	  0, 0, -2, 0, 0, 0, 0, 1, 0);
+		0, 0, -2, 0, 0, 0, 0, 1, 0);
 
 	al_identity_transform(&transform);
 	al_translate_transform(&transform, -data->x, -data->y);
@@ -526,7 +508,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 		}
 	}
 
-	al_set_target_backbuffer(game->display);
+	SetFramebufferAsTarget(game);
 	al_draw_bitmap(data->pixelator, 0, 0, 0);
 
 	ALLEGRO_TRANSFORM projview;
@@ -550,19 +532,19 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 			y = y * -180 / 2 + 180 / 2;
 
 			if (data->entities[i].type == TYPE_FAKE) {
-				DrawCentered(data->fake->bitmap, x, y, 0);
+				DrawCentered(data->fake->frame->bitmap, x, y, 0);
 			}
 			if (data->entities[i].type == TYPE_MESSAGE) {
-				DrawCentered(data->news->bitmap, x, y, 0);
+				DrawCentered(data->news->frame->bitmap, x, y, 0);
 			}
 			if (data->entities[i].type == TYPE_USER) {
-				DrawCentered(data->user->bitmap, x, y, 0);
+				DrawCentered(data->user->frame->bitmap, x, y, 0);
 			}
 			if (data->entities[i].type == TYPE_ENEMY) {
-				DrawCentered(data->bad->bitmap, x, y, 0);
+				DrawCentered(data->bad->frame->bitmap, x, y, 0);
 			}
 			if (data->entities[i].type == TYPE_EXPLOSION) {
-				DrawCentered(data->explosion->bitmap, x, y, 0);
+				DrawCentered(data->explosion->frame->bitmap, x, y, 0);
 				al_draw_textf(data->font, al_map_rgb(0, 0, 0), x + 1 + 3, y - 5 + 1, ALLEGRO_ALIGN_CENTER, "%d", data->entities[i].score);
 				al_draw_textf(data->font, al_map_rgb(255, 255, 255), x + 3, y - 5, ALLEGRO_ALIGN_CENTER, "%d", data->entities[i].score);
 			}
@@ -626,7 +608,6 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 }
 
 void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, ALLEGRO_EVENT* ev) {
-	TM_HandleEvent(data->timeline, ev);
 	// Called for each event in Allegro event queue.
 	// Here you can handle user input, expiring timers etc.
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_ESCAPE)) {
@@ -701,7 +682,7 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 
 	data->bg = al_load_bitmap(GetDataFilePath(game, "bg.png"));
 	progress(game);
-	data->timeline = TM_Init(game, "timeline");
+	data->timeline = TM_Init(game, data, "timeline");
 
 	int flags = al_get_new_bitmap_flags();
 	al_set_new_bitmap_flags(flags ^ ALLEGRO_MAG_LINEAR);
@@ -729,36 +710,36 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 
 	data->car = CreateCharacter(game, "car");
 	RegisterSpritesheet(game, data->car, "car");
-	LoadSpritesheets(game, data->car);
+	LoadSpritesheets(game, data->car, progress);
 	progress(game);
 	data->police = CreateCharacter(game, "police");
 	RegisterSpritesheet(game, data->police, "normal");
 	RegisterSpritesheet(game, data->police, "ban");
-	LoadSpritesheets(game, data->police);
+	LoadSpritesheets(game, data->police, progress);
 	progress(game);
 	data->teeth = CreateCharacter(game, "teeth");
 	RegisterSpritesheet(game, data->teeth, "teeth");
-	LoadSpritesheets(game, data->teeth);
+	LoadSpritesheets(game, data->teeth, progress);
 	progress(game);
 	data->user = CreateCharacter(game, "user");
 	RegisterSpritesheet(game, data->user, "user");
-	LoadSpritesheets(game, data->user);
+	LoadSpritesheets(game, data->user, progress);
 	progress(game);
 	data->fake = CreateCharacter(game, "fake");
 	RegisterSpritesheet(game, data->fake, "fake");
-	LoadSpritesheets(game, data->fake);
+	LoadSpritesheets(game, data->fake, progress);
 	progress(game);
 	data->news = CreateCharacter(game, "news");
 	RegisterSpritesheet(game, data->news, "news");
-	LoadSpritesheets(game, data->news);
+	LoadSpritesheets(game, data->news, progress);
 	progress(game);
 	data->bad = CreateCharacter(game, "bad");
 	RegisterSpritesheet(game, data->bad, "bad");
-	LoadSpritesheets(game, data->bad);
+	LoadSpritesheets(game, data->bad, progress);
 	progress(game);
 	data->explosion = CreateCharacter(game, "explosion");
 	RegisterSpritesheet(game, data->explosion, "explosion");
-	LoadSpritesheets(game, data->explosion);
+	LoadSpritesheets(game, data->explosion, progress);
 	progress(game);
 	data->font = al_load_font(GetDataFilePath(game, "fonts/MonkeyIsland.ttf"), 8, ALLEGRO_TTF_MONOCHROME);
 	progress(game);
@@ -855,99 +836,99 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	al_clear_to_color(al_map_rgba(0, 0, 0, 0));
 
 	ALLEGRO_VERTEX vertices[6] = {
-	  // bottom left triangle
-	  {.x = 0, .y = 0, .u = 0, .v = 0, .color = al_map_rgb(255, 255, 255)}, // top left
-	  {.x = 0, .y = data->h, .u = 0, .v = data->h, .color = al_map_rgb(255, 255, 255)}, // bottom left
-	  {.x = data->w, .y = data->h, .u = data->w, .v = data->h, .color = al_map_rgb(255, 255, 255)}, // bottom right
-	  // up right triangle
-	  {.x = 0, .y = 0, .u = 0, .v = 0, .color = al_map_rgb(255, 255, 255)}, // top left
-	  {.x = data->w, .y = 0, .u = data->w, .v = 0, .color = al_map_rgb(255, 255, 255)}, // top right
-	  {.x = data->w, .y = data->h, .u = data->w, .v = data->h, .color = al_map_rgb(255, 255, 255)}, // bottom right
+		// bottom left triangle
+		{.x = 0, .y = 0, .u = 0, .v = 0, .color = al_map_rgb(255, 255, 255)}, // top left
+		{.x = 0, .y = data->h, .u = 0, .v = data->h, .color = al_map_rgb(255, 255, 255)}, // bottom left
+		{.x = data->w, .y = data->h, .u = data->w, .v = data->h, .color = al_map_rgb(255, 255, 255)}, // bottom right
+		// up right triangle
+		{.x = 0, .y = 0, .u = 0, .v = 0, .color = al_map_rgb(255, 255, 255)}, // top left
+		{.x = data->w, .y = 0, .u = data->w, .v = 0, .color = al_map_rgb(255, 255, 255)}, // top right
+		{.x = data->w, .y = data->h, .u = data->w, .v = data->h, .color = al_map_rgb(255, 255, 255)}, // bottom right
 	};
 
 	al_draw_prim(vertices, NULL, data->bg, 0, 6, ALLEGRO_PRIM_TRIANGLE_LIST);
 
 	//al_draw_filled_rectangle(data->w / 2 - 5, data->h / 2 - 5, data->w / 2 + 5, data->h / 2 + 5, al_map_rgb(255, 0, 0));
 
-	al_set_target_backbuffer(game->display);
+	SetFramebufferAsTarget(game);
 
 	data->x = data->w / 2;
 	data->y = 3 * data->h / 4;
 
-	TM_AddDelay(data->timeline, 1500);
+	TM_AddDelay(data->timeline, 1.5);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/zenek.flac"), 4, 1024), "To co dzisiaj robimy, Gienek?", "ZENEK"), "speak");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/gienek.flac"), 4, 1024), "No jak to co Zenek, przejmujemy wladze nad swiatem!", "GIENEK"), "speak");
-	TM_AddAction(data->timeline, &ShowLogo, TM_AddToArgs(NULL, 1, data), "logo");
-	TM_AddDelay(data->timeline, 5000);
-	TM_AddAction(data->timeline, &HideLogo, TM_AddToArgs(NULL, 1, data), "logo");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/intro1.flac"), 4, 1024), "*dryn dryn*", "TELEFON"), "speak");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/intro2.flac"), 4, 1024), "Halo, policja? Prosze przyjechac na Fejsbuga™!", "GLOS Z TELEFONU"), "speak");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/intro3.flac"), 4, 1024), "Sie robi.", "KOMISARZ ZIEBA"), "speak");
-	TM_AddAction(data->timeline, &StartGame, TM_AddToArgs(NULL, 1, data), "start");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/zenek.flac"), 4, 1024), "To co dzisiaj robimy, Gienek?", "ZENEK"));
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/gienek.flac"), 4, 1024), "No jak to co Zenek, przejmujemy wladze nad swiatem!", "GIENEK"));
+	TM_AddAction(data->timeline, &ShowLogo, NULL);
+	TM_AddDelay(data->timeline, 5);
+	TM_AddAction(data->timeline, &HideLogo, NULL);
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/intro1.flac"), 4, 1024), "*dryn dryn*", "TELEFON"));
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/intro2.flac"), 4, 1024), "Halo, policja? Prosze przyjechac na Fejsbuga™!", "GLOS Z TELEFONU"));
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/intro3.flac"), 4, 1024), "Sie robi.", "KOMISARZ ZIEBA"));
+	TM_AddAction(data->timeline, &StartGame, NULL);
 
-	TM_AddDelay(data->timeline, 2000);
+	TM_AddDelay(data->timeline, 2);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/1.flac"), 4, 1024), "Nazywam sie Zieba. Komisarz Zieba.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/1.flac"), 4, 1024), "Nazywam sie Zieba. Komisarz Zieba.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/2.flac"), 4, 1024), "Dbam o porzadek na Fejsbugu™, by nikt nie przeszkadzal uzytkownikom wiesc ich spokojnego uzytkowniczego zycia.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/2.flac"), 4, 1024), "Dbam o porzadek na Fejsbugu™, by nikt nie przeszkadzal uzytkownikom wiesc ich spokojnego uzytkowniczego zycia.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/3.flac"), 4, 1024), "Poruszam sie moim cybernetycznym poduszkowcem po cyberprzestrzeni za pomoca KLAWISZY STRZALEK", "KOMISARZ ZIEBA"), "speak");
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/4.flac"), 4, 1024), "a wymierzam sprawiedliwosc moim wiernym Banhammerem za pomoca SPACJI.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/3.flac"), 4, 1024), "Poruszam sie moim cybernetycznym poduszkowcem po cyberprzestrzeni za pomoca KLAWISZY STRZALEK", "KOMISARZ ZIEBA"));
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/4.flac"), 4, 1024), "a wymierzam sprawiedliwosc moim wiernym Banhammerem za pomoca SPACJI.", "KOMISARZ ZIEBA"));
 
-	TM_AddDelay(data->timeline, 1000);
+	TM_AddDelay(data->timeline, 1);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/5.flac"), 4, 1024), "Swietnie.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/5.flac"), 4, 1024), "Swietnie.", "KOMISARZ ZIEBA"));
 
-	TM_AddDelay(data->timeline, 1000);
+	TM_AddDelay(data->timeline, 1);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/6.flac"), 4, 1024), "Znowu ktos wypuszcza Fake Newsy.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/6.flac"), 4, 1024), "Znowu ktos wypuszcza Fake Newsy.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/7.flac"), 4, 1024), "Musze je unicestwic zanim uzytkownicy znajda sie pod ich wplywem.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/7.flac"), 4, 1024), "Musze je unicestwic zanim uzytkownicy znajda sie pod ich wplywem.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &SpawnSingleFake, TM_AddToArgs(NULL, 1, data), "spawnsinglenews");
+	TM_AddAction(data->timeline, &SpawnSingleFake, NULL);
 
-	TM_AddDelay(data->timeline, 4000);
+	TM_AddDelay(data->timeline, 4);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/8.flac"), 4, 1024), "I po sprawie.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/8.flac"), 4, 1024), "I po sprawie.", "KOMISARZ ZIEBA"));
 
-	TM_AddDelay(data->timeline, 2000);
+	TM_AddDelay(data->timeline, 2);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/9.flac"), 4, 1024), "Oto i jest. Manipulator.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/9.flac"), 4, 1024), "Oto i jest. Manipulator.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/10.flac"), 4, 1024), "Nastawia ludzi przeciwko sobie, aby byli podatni na manipulacje, zeby ich zmanipulowac.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/10.flac"), 4, 1024), "Nastawia ludzi przeciwko sobie, aby byli podatni na manipulacje, zeby ich zmanipulowac.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &SpawnSingleEnemy, TM_AddToArgs(NULL, 1, data), "spawnsinglenews");
+	TM_AddAction(data->timeline, &SpawnSingleEnemy, NULL);
 
-	TM_AddDelay(data->timeline, 4000);
+	TM_AddDelay(data->timeline, 4);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/12.flac"), 4, 1024), "Jest ich wiecej.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/12.flac"), 4, 1024), "Jest ich wiecej.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &SpawnEnemies, TM_AddToArgs(NULL, 1, data), "spawn");
+	TM_AddAction(data->timeline, &SpawnEnemies, NULL);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/ostroznie2.flac"), 4, 1024), "Nie moge banowac zwyklych uzytkownikow i ich zwyklych tresci, bo zaczna sie buntowac.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/ostroznie2.flac"), 4, 1024), "Nie moge banowac zwyklych uzytkownikow i ich zwyklych tresci, bo zaczna sie buntowac.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/13.flac"), 4, 1024), "Gdy uzytkownicy przekrocza Pulap Spolecznego Zgrzytania Zebami Przeciwko Sobie, zamkna sie w swoich bankach informacyjnych i beda pod pelna kontrola zloczynców.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/13.flac"), 4, 1024), "Gdy uzytkownicy przekrocza Pulap Spolecznego Zgrzytania Zebami Przeciwko Sobie, zamkna sie w swoich bankach informacyjnych i beda pod pelna kontrola zloczynców.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/14.flac"), 4, 1024), "Nie moge do tego dopuscic.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/14.flac"), 4, 1024), "Nie moge do tego dopuscic.", "KOMISARZ ZIEBA"));
 
-	TM_AddAction(data->timeline, &PlayGameMusic, TM_AddToArgs(NULL, 1, data), "spawn");
+	TM_AddAction(data->timeline, &PlayGameMusic, NULL);
 
-	TM_AddDelay(data->timeline, 20000);
+	TM_AddDelay(data->timeline, 20);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/16.flac"), 4, 1024), "Zle sily rosna w sile. Usiluja ze mna wygrac, ale jestem silniejszy.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/16.flac"), 4, 1024), "Zle sily rosna w sile. Usiluja ze mna wygrac, ale jestem silniejszy.", "KOMISARZ ZIEBA"));
 
-	TM_AddDelay(data->timeline, 30000);
+	TM_AddDelay(data->timeline, 30);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/17.flac"), 4, 1024), "Jedziemy dalej.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/17.flac"), 4, 1024), "Jedziemy dalej.", "KOMISARZ ZIEBA"));
 
-	TM_AddDelay(data->timeline, 30000);
+	TM_AddDelay(data->timeline, 30);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/15.flac"), 4, 1024), "Kolejna fala. Tym razem bedzie trudniej.", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/15.flac"), 4, 1024), "Kolejna fala. Tym razem bedzie trudniej.", "KOMISARZ ZIEBA"));
 
-	TM_AddDelay(data->timeline, 15000);
+	TM_AddDelay(data->timeline, 15);
 
-	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 4, data, al_load_audio_stream(GetDataFilePath(game, "voices/bannivederci.flac"), 4, 1024), "Bannivederci!", "KOMISARZ ZIEBA"), "speak");
+	TM_AddAction(data->timeline, &Speak, TM_AddToArgs(NULL, 3, al_load_audio_stream(GetDataFilePath(game, "voices/bannivederci.flac"), 4, 1024), "Bannivederci!", "KOMISARZ ZIEBA"));
 }
 
 void Gamestate_Stop(struct Game* game, struct GamestateResources* data) {

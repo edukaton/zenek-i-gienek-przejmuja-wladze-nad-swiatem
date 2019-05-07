@@ -21,24 +21,12 @@
 #include "common.h"
 #include <libsuperderpy.h>
 
-void DrawCentered(ALLEGRO_BITMAP* bitmap, int x, int y, int flags) {
-	al_draw_bitmap(bitmap, x - al_get_bitmap_width(bitmap) / 2.0, y - al_get_bitmap_height(bitmap) / 2.0, flags);
-}
-
 bool GlobalEventHandler(struct Game* game, ALLEGRO_EVENT* ev) {
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_F)) {
-		game->config.fullscreen = !game->config.fullscreen;
-		if (game->config.fullscreen) {
-			SetConfigOption(game, "SuperDerpy", "fullscreen", "1");
-			al_hide_mouse_cursor(game->display);
-		} else {
-			SetConfigOption(game, "SuperDerpy", "fullscreen", "0");
-			al_show_mouse_cursor(game->display);
-		}
-		al_set_display_flag(game->display, ALLEGRO_FRAMELESS, game->config.fullscreen);
-		al_set_display_flag(game->display, ALLEGRO_FULLSCREEN_WINDOW, game->config.fullscreen);
-		SetupViewport(game, game->viewport_config);
-		PrintConsole(game, "Fullscreen toggled");
+		ToggleFullscreen(game);
+	}
+	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_M)) {
+		ToggleMute(game);
 	}
 
 	return false;

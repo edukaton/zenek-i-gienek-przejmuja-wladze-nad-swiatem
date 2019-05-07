@@ -30,7 +30,8 @@ struct GamestateResources {
 	ALLEGRO_SAMPLE *sample, *kbd_sample, *key_sample;
 	ALLEGRO_SAMPLE_INSTANCE *sound, *kbd, *key;
 	ALLEGRO_BITMAP *bitmap, *checkerboard, *pixelator;
-	int pos, fade, tick, tan;
+	int pos;
+	double fade, tan;
 	char text[255];
 	bool underscore, fadeout;
 	struct Timeline* timeline;
@@ -41,66 +42,57 @@ int Gamestate_ProgressCount = 5;
 static const char* text = "# dosowisko.net";
 
 //==================================Timeline manager actions BEGIN
-static bool FadeIn(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-	if (state == TM_ACTIONSTATE_START) {
-		data->fade = 0;
-	} else if (state == TM_ACTIONSTATE_DESTROY) {
-		data->fade = 255;
-	} else if (state == TM_ACTIONSTATE_RUNNING) {
-		data->fade += 2;
-		data->tan++;
-		return data->fade >= 255;
+static TM_ACTION(FadeIn) {
+	switch (action->state) {
+		case TM_ACTIONSTATE_START:
+			data->fade = 0;
+			return false;
+		case TM_ACTIONSTATE_RUNNING:
+			data->fade += 2 * action->delta / (1 / 60.0);
+			data->tan += action->delta / (1 / 60.0);
+			return data->fade >= 255;
+		case TM_ACTIONSTATE_DESTROY:
+			data->fade = 255;
+			return false;
+		default:
+			return false;
 	}
-	return false;
 }
 
-static bool FadeOut(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-	if (state == TM_ACTIONSTATE_START) {
-		data->fadeout = true;
-	}
+static TM_ACTION(FadeOut) {
+	TM_RunningOnly;
+	data->fadeout = true;
 	return true;
 }
 
-static bool End(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	if (state == TM_ACTIONSTATE_RUNNING) {
-		SwitchCurrentGamestate(game, NEXT_GAMESTATE);
-	}
+static TM_ACTION(End) {
+	TM_RunningOnly;
+	SwitchCurrentGamestate(game, NEXT_GAMESTATE);
 	return true;
 }
 
-static bool Play(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	ALLEGRO_SAMPLE_INSTANCE* data = TM_GetArg(action->arguments, 0);
-	if (state == TM_ACTIONSTATE_RUNNING) {
-		al_play_sample_instance(data);
-	}
+static TM_ACTION(Play) {
+	TM_RunningOnly;
+	al_play_sample_instance(TM_Arg(0));
 	return true;
 }
 
-static bool Type(struct Game* game, struct TM_Action* action, enum TM_ActionState state) {
-	struct GamestateResources* data = TM_GetArg(action->arguments, 0);
-	if (state == TM_ACTIONSTATE_RUNNING) {
-		strncpy(data->text, text, data->pos++);
-		data->text[data->pos] = 0;
-		if (strcmp(data->text, text) != 0) {
-			TM_AddBackgroundAction(data->timeline, Type, TM_AddToArgs(NULL, 1, data), 60 + rand() % 60, "type");
-		} else {
-			al_stop_sample_instance(data->kbd);
-		}
-		return true;
+static TM_ACTION(Type) {
+	TM_RunningOnly;
+	strncpy(data->text, text, data->pos++);
+	data->text[data->pos] = 0;
+	if (strcmp(data->text, text) != 0) {
+		TM_AddBackgroundAction(data->timeline, Type, NULL, (60 + rand() % 60) / 1000.0);
+	} else {
+		al_stop_sample_instance(data->kbd);
 	}
-	return false;
+	return true;
 }
 //==================================Timeline manager actions END
 
 void Gamestate_Logic(struct Game* game, struct GamestateResources* data, double delta) {
-	TM_Process(data->timeline);
-	data->tick++;
-	if (data->tick == 30) {
-		data->underscore = !data->underscore;
-		data->tick = 0;
-	}
+	TM_Process(data->timeline, delta);
+	data->underscore = Fract(game->time) >= 0.5;
 }
 
 void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
@@ -108,35 +100,35 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 		char t[255] = "";
 		strncpy(t, data->text, 255);
 		if (data->underscore) {
-			strncat(t, "_", 1);
+			strncat(t, "_", 2);
 		} else {
-			strncat(t, " ", 1);
+			strncat(t, " ", 2);
 		}
 
 		al_set_target_bitmap(data->bitmap);
 		al_clear_to_color(al_map_rgba(0, 0, 0, 0));
 
-		al_draw_text(data->font, al_map_rgba(255, 255, 255, 10), 320 / 2,
-		  180 * 0.4167, ALLEGRO_ALIGN_CENTRE, t);
+		al_draw_text(data->font, al_map_rgba(255, 255, 255, 10), 320 / 2.0,
+			180 * 0.4167, ALLEGRO_ALIGN_CENTRE, t);
 
 		double tg = tan(-data->tan / 384.0 * ALLEGRO_PI - ALLEGRO_PI / 2);
 
-		int fade = data->fadeout ? 255 : data->fade;
+		int fade = data->fadeout ? 255 : (int)(data->fade);
 
 		al_set_target_bitmap(data->pixelator);
 		al_clear_to_color(al_map_rgb(35, 31, 32));
 
 		al_draw_tinted_scaled_bitmap(data->bitmap, al_map_rgba(fade, fade, fade, fade), 0, 0,
-		  al_get_bitmap_width(data->bitmap), al_get_bitmap_height(data->bitmap),
-		  -tg * al_get_bitmap_width(data->bitmap) * 0.05,
-		  -tg * al_get_bitmap_height(data->bitmap) * 0.05,
-		  al_get_bitmap_width(data->bitmap) + tg * 0.1 * al_get_bitmap_width(data->bitmap),
-		  al_get_bitmap_height(data->bitmap) + tg * 0.1 * al_get_bitmap_height(data->bitmap),
-		  0);
+			al_get_bitmap_width(data->bitmap), al_get_bitmap_height(data->bitmap),
+			-tg * al_get_bitmap_width(data->bitmap) * 0.05,
+			-tg * al_get_bitmap_height(data->bitmap) * 0.05,
+			al_get_bitmap_width(data->bitmap) + tg * 0.1 * al_get_bitmap_width(data->bitmap),
+			al_get_bitmap_height(data->bitmap) + tg * 0.1 * al_get_bitmap_height(data->bitmap),
+			0);
 
 		al_draw_bitmap(data->checkerboard, 0, 0, 0);
 
-		al_set_target_backbuffer(game->display);
+		SetFramebufferAsTarget(game);
 
 		al_draw_scaled_bitmap(data->pixelator, 0, 0, 320, 180, 0, 0, game->viewport.width, game->viewport.height, 0);
 	}
@@ -146,62 +138,45 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	data->pos = 1;
 	data->fade = 0;
 	data->tan = 64;
-	data->tick = 0;
 	data->fadeout = false;
 	data->underscore = true;
 	strncpy(data->text, "#", 255);
-	TM_AddDelay(data->timeline, 300);
-	TM_AddQueuedBackgroundAction(data->timeline, FadeIn, TM_AddToArgs(NULL, 1, data), 0, "fadein");
-	TM_AddDelay(data->timeline, 1500);
-	TM_AddAction(data->timeline, Play, TM_AddToArgs(NULL, 1, data->kbd), "playkbd");
-	TM_AddQueuedBackgroundAction(data->timeline, Type, TM_AddToArgs(NULL, 1, data), 0, "type");
-	TM_AddDelay(data->timeline, 3200);
-	TM_AddAction(data->timeline, Play, TM_AddToArgs(NULL, 1, data->key), "playkey");
-	TM_AddDelay(data->timeline, 50);
-	TM_AddAction(data->timeline, FadeOut, TM_AddToArgs(NULL, 1, data), "fadeout");
-	TM_AddDelay(data->timeline, 1000);
-	TM_AddAction(data->timeline, End, NULL, "end");
+	TM_AddDelay(data->timeline, 0.3);
+	TM_AddQueuedBackgroundAction(data->timeline, FadeIn, NULL, 0);
+	TM_AddDelay(data->timeline, 1.5);
+	TM_AddNamedAction(data->timeline, Play, TM_Args(data->kbd), "PlayKbd");
+	TM_AddQueuedBackgroundAction(data->timeline, Type, NULL, 0);
+	TM_AddDelay(data->timeline, 3.2);
+	TM_AddNamedAction(data->timeline, Play, TM_Args(data->key), "PlayKey");
+	TM_AddDelay(data->timeline, 0.05);
+	TM_AddAction(data->timeline, FadeOut, NULL);
+	TM_AddDelay(data->timeline, 1.0);
+	TM_AddAction(data->timeline, End, NULL);
 	al_play_sample_instance(data->sound);
 }
 
 void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, ALLEGRO_EVENT* ev) {
-	TM_HandleEvent(data->timeline, ev);
 	if (((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_ESCAPE)) || (ev->type == ALLEGRO_EVENT_TOUCH_END)) {
-		SwitchCurrentGamestate(game, SKIP_GAMESTATE);
-		if (strcmp(SKIP_GAMESTATE, NEXT_GAMESTATE) != 0) {
-			UnloadGamestate(game, NEXT_GAMESTATE);
-		}
+		UnloadAllGamestates(game);
+		StartGamestate(game, SKIP_GAMESTATE);
 	}
 }
 
 void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	struct GamestateResources* data = malloc(sizeof(struct GamestateResources));
 	int flags = al_get_new_bitmap_flags();
-	al_set_new_bitmap_flags(flags ^ ALLEGRO_MAG_LINEAR);
+	al_set_new_bitmap_flags(flags & ~ALLEGRO_MAG_LINEAR);
 
-	data->timeline = TM_Init(game, "main");
+	data->timeline = TM_Init(game, data, "main");
 	data->bitmap = CreateNotPreservedBitmap(320, 180);
-	data->checkerboard = al_create_bitmap(320, 180);
 	data->pixelator = CreateNotPreservedBitmap(320, 180);
-
-	al_set_target_bitmap(data->checkerboard);
-	al_lock_bitmap(data->checkerboard, ALLEGRO_PIXEL_FORMAT_ANY, ALLEGRO_LOCK_WRITEONLY);
-	int x, y;
-	for (x = 0; x < al_get_bitmap_width(data->checkerboard); x = x + 2) {
-		for (y = 0; y < al_get_bitmap_height(data->checkerboard); y = y + 2) {
-			al_put_pixel(x, y, al_map_rgba(0, 0, 0, 64));
-			al_put_pixel(x + 1, y, al_map_rgba(0, 0, 0, 0));
-			al_put_pixel(x, y + 1, al_map_rgba(0, 0, 0, 0));
-			al_put_pixel(x + 1, y + 1, al_map_rgba(0, 0, 0, 0));
-		}
-	}
-	al_unlock_bitmap(data->checkerboard);
-	al_set_target_backbuffer(game->display);
+	data->checkerboard = al_create_bitmap(320, 180);
 	(*progress)(game);
 
 	data->font = al_load_ttf_font(GetDataFilePath(game, "fonts/DejaVuSansMono.ttf"),
-	  (int)(180 * 0.1666 / 8) * 8, 0);
+		(int)(180 * 0.1666 / 8) * 8, 0);
 	(*progress)(game);
+
 	data->sample = al_load_sample(GetDataFilePath(game, "dosowisko.flac"));
 	data->sound = al_create_sample_instance(data->sample);
 	al_attach_sample_instance_to_mixer(data->sound, game->audio.music);
@@ -223,6 +198,22 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	al_set_new_bitmap_flags(flags);
 
 	return data;
+}
+
+void Gamestate_PostLoad(struct Game* game, struct GamestateResources* data) {
+	al_set_target_bitmap(data->checkerboard);
+	al_lock_bitmap(data->checkerboard, ALLEGRO_PIXEL_FORMAT_ANY, ALLEGRO_LOCK_WRITEONLY);
+	int x, y;
+	for (x = 0; x < al_get_bitmap_width(data->checkerboard); x = x + 2) {
+		for (y = 0; y < al_get_bitmap_height(data->checkerboard); y = y + 2) {
+			al_put_pixel(x, y, al_map_rgba(0, 0, 0, 64));
+			al_put_pixel(x + 1, y, al_map_rgba(0, 0, 0, 0));
+			al_put_pixel(x, y + 1, al_map_rgba(0, 0, 0, 0));
+			al_put_pixel(x + 1, y + 1, al_map_rgba(0, 0, 0, 0));
+		}
+	}
+	al_unlock_bitmap(data->checkerboard);
+	al_set_target_backbuffer(game->display);
 }
 
 void Gamestate_Stop(struct Game* game, struct GamestateResources* data) {
@@ -247,13 +238,9 @@ void Gamestate_Unload(struct Game* game, struct GamestateResources* data) {
 }
 
 void Gamestate_Reload(struct Game* game, struct GamestateResources* data) {
+	int flags = al_get_new_bitmap_flags();
+	al_set_new_bitmap_flags(flags & ~ALLEGRO_MAG_LINEAR);
 	data->bitmap = CreateNotPreservedBitmap(320, 180);
 	data->pixelator = CreateNotPreservedBitmap(320, 180);
-}
-
-void Gamestate_Pause(struct Game* game, struct GamestateResources* data) {
-	TM_Pause(data->timeline);
-}
-void Gamestate_Resume(struct Game* game, struct GamestateResources* data) {
-	TM_Resume(data->timeline);
+	al_set_new_bitmap_flags(flags);
 }
